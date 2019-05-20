@@ -1,6 +1,6 @@
 from typing import List
 from typing import Union
-
+from requests.exceptions import ConnectionError
 
 from .base_repository import BaseRepository
 from .exceptions import PackageNotFound
@@ -44,10 +44,15 @@ class Pool(BaseRepository):
         raise NotImplementedError()
 
     def package(self, name, version, extras=None):
+        failed_repositories = []
+        package = None
         for repository in self._repositories:
             try:
                 package = repository.package(name, version, extras=extras)
             except PackageNotFound:
+                continue
+            except ConnectionError as e:
+                failed_repositories.append(e)
                 continue
 
             if package:
@@ -55,6 +60,8 @@ class Pool(BaseRepository):
 
                 return package
 
+        if len(failed_repositories):
+            raise ConnectionError(failed_repositories)
         raise PackageNotFound("Package {} ({}) not found.".format(name, version))
 
     def find_packages(
